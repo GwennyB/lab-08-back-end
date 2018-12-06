@@ -1,5 +1,10 @@
 'use strict';
 
+// url stash
+const url = `https://maps.googleapis.com/maps/api/geocode/json?address=seattle&key=${process.env.GEOCODE_API_KEY}`;
+
+
+
 // application dependencies
 const express = require('express');
 const cors = require('cors');
@@ -33,28 +38,53 @@ app.get((''), (request,response) => {
 })
 
 // set LOCATION route
-app.get(('/location'), (request, response) => {
-  getLatLng(request.query.data)
-    .then (location => {
-      response.send(location)
-    });
-})
+app.get(('/location'), getLatLng);
 
-// HELPER: get location data and return location object
+// HELPER, LOCATION: define cache handling
 function getLatLng (query) {
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=seattle&key=${process.env.GEOCODE_API_KEY}`;
-  return superagent.get(url)
-    .then(locResult => new Location(locResult.body, query) )
-    .catch(error => handleError(error));
+  const handler = {
+    query: request.query.data,
+    cacheHit: () => {
+      // send hit return to front
+    },
+    cacheMiss: () => {
+      // call fetch method
+    }
+  }
+  checkDB(handler);
 }
 
-// HELPER: Location constructor
+// HELPER, LOCATION: db lookup, hit/miss call
+checkDB = (handler) => {
+  // query cache
+  // if results, then return results to hit
+  // if no results, then point to miss
+  // if bad query, then point to error handler
+}
+
+// HELPER, LOCATION: constructor
 function Location (data, query) {
   this.search_query = query,
   this.formatted_query = data.results[0].formatted_address,
   this.latitude = data.results[0].geometry.location.lat,
   this.longitude = data.results[0].geometry.location.lng
 }
+
+// HELPER, LOCATION: fetch location from API
+Location.fetchLatLng = (query) => {
+  // API call
+  // if no data: throw error
+  // if data: save, send to front
+}
+
+//HELPER, SAVE: save API data to DB
+Location.prototype.saveToDB = function(id) {
+  // push data to DB
+}
+
+
+
+
 
 // set WEATHER route
 app.get(('/weather'), getWeather)
