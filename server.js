@@ -45,7 +45,6 @@ function getLatLng (request, response) {
   const handler = {
     query: request.query.data,
     cacheHit: (results) => {
-      console.log('cacheHit: ',results);
       response.send(results.rows[0]);
     },
     cacheMiss: () => {
@@ -64,6 +63,7 @@ function checkDB (handler) { // same as 'lookupLocation' in B's code
 
   return client.query( SQL, values)
     .then( results => {
+      console.log('query results: ', results);
       // if results, then return results to hit
       if (results.rowCount > 0) {
         handler.cacheHit(results);
@@ -87,8 +87,8 @@ function Location (data, query) {
 // HELPER, LOCATION: fetch location from API
 Location.fetchLatLng = (query) => {
   // API call
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=seattle&key=${process.env.GEOCODE_API_KEY}`;
-  superagent.get(url)
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${process.env.GEOCODE_API_KEY}`;
+  return superagent.get(url)
     .then( apiData => {
       // if no data: throw error
       if (!apiData.body.results.length) {
@@ -101,6 +101,7 @@ Location.fetchLatLng = (query) => {
             location.id = result.rows[0].id;
             return location;
           })
+          // return location;
       }
     })
 }
@@ -111,6 +112,7 @@ Location.prototype.saveToDB = function() {
     INSERT INTO locations
       (search_query,formatted_query,latitude,longitude)
       VALUES($1,$2,$3,$4)
+      RETURNING id
   `;
   let values = Object.values(this);
   return client.query( SQL,values );
