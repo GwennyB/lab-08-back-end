@@ -14,14 +14,15 @@ const app = express();
 
 app.use(cors());
 
+
+// get application constants
+require('dotenv').config();
+const PORT = process.env.PORT;
+
 // DATABASE CONFIG
 const client = new pg.Client(process.env.DATABASE_URL);
 client.connect();
 client.on('error', err => console.error(err));
-
-// get application constants
-require('dotenv').config();
-const PORT = process.env.PORT || 4000;
 
 // set test route
 // app.get('/test', (request,response) => {
@@ -44,14 +45,14 @@ function getLatLng (request, response) {
   const handler = {
     query: request.query.data,
     cacheHit: (results) => {
-      console.log('cacheHit response: ',results);
+      console.log('cacheHit: ',results);
       response.send(results.rows[0]);
     },
     cacheMiss: () => {
-      location.fetchLatLng(request.query.data)
+      Location.fetchLatLng(request.query.data)
         .then( results => response.send(results));
     }
-  }
+  };
   checkDB(handler);
 }
 
@@ -66,7 +67,7 @@ function checkDB (handler) { // same as 'lookupLocation' in B's code
       // if results, then return results to hit
       if (results.rowCount > 0) {
         handler.cacheHit(results);
-      // if no results, then point to miss
+        // if no results, then point to miss
       } else {
         handler.cacheMiss();
       }
@@ -78,9 +79,9 @@ function checkDB (handler) { // same as 'lookupLocation' in B's code
 // HELPER, LOCATION: constructor
 function Location (data, query) {
   this.search_query = query,
-  this.formatted_query = data.results[0].formatted_address,
-  this.latitude = data.results[0].geometry.location.lat,
-  this.longitude = data.results[0].geometry.location.lng
+  this.formatted_query = data.formatted_address,
+  this.latitude = data.geometry.location.lat,
+  this.longitude = data.geometry.location.lng
 }
 
 // HELPER, LOCATION: fetch location from API
@@ -90,9 +91,9 @@ Location.fetchLatLng = (query) => {
   superagent.get(url)
     .then( apiData => {
       // if no data: throw error
-      if (!apiData.body.result.length) {
+      if (!apiData.body.results.length) {
         throw 'No Data from API'
-      // if data: save, send to front
+        // if data: save, send to front
       } else {
         let location = new Location (apiData.body.results[0], query);
         return location.saveToDB()
