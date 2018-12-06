@@ -5,7 +5,7 @@ Lab 08: Persistence with a SQL database
 
 Estimate of time needed to complete: 4 hours (with debugging)
 
-Start time: _______
+Start time: 9:00am
 
 Finish time: ______
 
@@ -16,7 +16,7 @@ Actual time needed to complete: __________
 # zubucity-12-06.herokuapp.com
 
 **Author**: Gwen Zubatch
-**Version**: 1.0.0 
+**Version**: 1.1.0 
 
 ## Overview
 This server application accepts a location (city) query string from a client and returns objects with SQL-DB or API-sourced map, weather, restaurants, and movies data for that location.
@@ -55,7 +55,7 @@ Movies route (/movies) requests object from same client-side AJAX GET request. R
   image_url:
   popularity:
   released_on:
-<!-- add SQL arch here -->
+Caching: All features use DB='explorer' for remote caching.
 
 ## Change Log
 12-04-2018 10:53am - Application now has a fully-functional express server, with a GET route for the location resource.
@@ -64,8 +64,7 @@ Movies route (/movies) requests object from same client-side AJAX GET request. R
 12-05-2018 1:00pm - Application now uses constructors to return consistently formatted objects for each feature.
 12-05-2018 2:45pm - Application now returns location object sourced by Google Geocoding API, weather object sourced by Dark Sky API, and restaurants object sourced by Yelp API.
 12-05-2018 5:45pm - Application now returns movies data sourced by TMDb API. Deployed at https://zubucity-12-05.herokuapp.com/.
-<!-- add SQL changes here -->
-
+12-06-2018 10:30am - Application is now connected to SQL DB ('explorer'), which contains tables for locations, weathers, yelps, and movies.
 
 ## Credits and Collaborations
 Collaborative effort by:
