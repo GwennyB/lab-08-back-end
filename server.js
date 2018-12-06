@@ -4,10 +4,16 @@
 const express = require('express');
 const cors = require('cors');
 const superagent = require('superagent');
+const pg = require('pg');
 
 const app = express();
 
 app.use(cors());
+
+// DATABASE CONFIG
+const client = new pg.Client(process.env.DATABASE_URL);
+client.connect();
+client.on('error', err => console.error(err));
 
 // get application constants
 require('dotenv').config();
