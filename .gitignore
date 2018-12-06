@@ -59,3 +59,8 @@ typings/
 
 # next.js build output
 .next
+
+# dev supporting data
+city-explorer-client/
+data/
+LAB.md
