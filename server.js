@@ -34,8 +34,8 @@ app.get((''), (request,response) => {
 
 // set routes
 app.get(('/location'), getLatLng);
-// app.get(('/weather'), getWeather);
-// app.get(('/yelp'), getYelp);
+app.get(('/weather'), getWeather);
+app.get(('/yelp'), getYelp);
 app.get(('/movies'), getMovies);
 
 
