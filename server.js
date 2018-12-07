@@ -40,7 +40,7 @@ app.get((''), (request,response) => {
 // set routes
 app.get(('/location'), getLatLng);
 app.get(('/weather'), getWeather);
-// app.get(('/yelp'), getYelp);
+app.get(('/yelp'), getYelp);
 // app.get(('/movies'), getMovies);
 
 
@@ -121,13 +121,16 @@ Location.prototype.saveToDB = function() {
 };
 
 
+
+
 // GENERIC HELPERS
+// helper object constructor
 function Feature (request) {
   this.location_id = request.query.data.id || 0;
   this.query = request.query.data;
 }
 
-
+// shared DB
 Feature.prototype.lookupFeature = function () {
   // query cache
   const SQL = `SELECT * FROM ${this.tableName} WHERE location_id=$1`;
@@ -136,6 +139,7 @@ Feature.prototype.lookupFeature = function () {
     .then( results => {
       // if results, then return results to hit
       if (results.rowCount > 0) {
+        this.cacheHit(results);
         // if no results, then point to miss
       } else {
         this.cacheMiss();
@@ -144,15 +148,18 @@ Feature.prototype.lookupFeature = function () {
     // if bad query, then point to error handler
     .catch( error => handleError(error) );
 }
-
-
-// HELPERS, WEATHER
+  
+  
+  // HELPERS, WEATHER
+  // build weather handler
 function getWeather (request, response) {
   const handler = new Feature (request);
   handler.cacheHit = (results) => {
+    console.log('cacheHit');
     response.send(results.rows);
   }
   handler.cacheMiss = () => {
+    console.log('cacheMiss');
     Weather.fetch(request.query)
       .then( results => response.send(results))
       .catch( error => handleError(error));
@@ -161,12 +168,14 @@ function getWeather (request, response) {
   handler.lookupFeature();
 }
 
+// weather constructor
 function Weather(weatData, locID) {
   this.location_id = locID;
   this.forecast = weatData.summary;
   this.time = new Date(weatData.time * 1000).toDateString();
 }
 
+// weather API request
 Weather.fetch = function(query) {
   // API call
   const url = `https://api.darksky.net/forecast/${process.env.DARKSKY_API_KEY}/${query.data.latitude},${query.data.longitude}`;
@@ -187,70 +196,69 @@ Weather.fetch = function(query) {
     });
 };
 
+// weather data cache
 Weather.prototype.saveToDB = function() {
   const SQL = `INSERT INTO weathers (forecast,time,location_id) VALUES ($1,$2,$3)`;
   let values = [this.forecast,this.time,this.location_id];
-  let weather = client.query( SQL,values );
-  return weather;
+  return client.query( SQL,values );
 };
 
 
+
 // HELPERS, YELP
-// function getYelp (request, response) {
-//   const handler = {
-//     id: request.query.data.id || 0,
-//     query: request.query.data,
-//     cacheHit: (results) => {
-//       response.send(results.rows);
-//       console.log('Yelp cacheHit: ', results);
-//     },
-//     cacheMiss: () => {
-//       Yelp.fetch(request.query.data)
-//         .then( results => response.send(results))
-//         .catch( error => handleError(error));
-//     },
-//     tableName: 'yelps',
-//   };
-//   lookupFeature(handler);
-// }
+function getYelp (request, response) {
+  const handler = new Feature (request);
+  handler.cacheHit = (results) => {
+    console.log('cacheHit');
+    response.send(results.rows);
+  }
+  handler.cacheMiss = () => {
+    console.log('cacheMiss');
+    Yelp.fetch(request.query)
+      .then( results => response.send(results))
+      .catch( error => handleError(error));
+  }
+  handler.tableName = 'yelps',
+  handler.lookupFeature();
+}
 
-// function Yelp (data) {
-//   this.name = data.name,
-//   this.image_url = data.image_url,
-//   this.price = data.price,
-//   this.rating = data.rating,
-//   this.url = data.url
-// }
+function Yelp (data,locID) {
+  this.location_id = locID;
+  this.name = data.name,
+  this.image_url = data.image_url,
+  this.price = data.price,
+  this.rating = data.rating,
+  this.url = data.url
+}
 
-// Yelp.fetch = (query) => {
-//   const url = `https://api.yelp.com/v3/businesses/search?location=${request.query.data.search_query}`;
-//   return superagent.get(url).set('Authorization', `Bearer ${process.env.YELP_API_KEY}`)
-//     .then( apiData => {
-//       // if no data: throw error
-//       if (!apiData.body.daily.length) {
-//         throw 'No Data from API'
-//         // if data: save, send to front
-//       } else {
-//         const yelps = apiData.body.businesses.map(thisOne => {
-//           const thisYelp = new Yelp(thisOne);
-//           thisYelp.save(query.id);
-//           return thisYelp;
-//         })
-//         return yelps;
-//       }
-//     });
-// };
+Yelp.fetch = (query) => {
+  const url = `https://api.yelp.com/v3/businesses/search?location=${query.data.search_query}`;
+  return superagent.get(url).set('Authorization', `Bearer ${process.env.YELP_API_KEY}`)
+    .then( apiData => {
+      // if no data: throw error
+      if (!apiData.body.businesses.length) {
+        throw 'No Data from API'
+        // if data: save, send to front
+      } else {
+        const yelps = apiData.body.businesses.map(biz => {
+          const thisYelp = new Yelp(biz,query.data.id);
+          console.log('biz.name', biz.name);
+          console.log('query.data.id', query.data.id);
+          thisYelp.saveToDB();
+          // console.log('thisYelp', thisYelp);
+          return thisYelp;
+        })
+        return yelps;
+      }
+    });
+};
 
-// Yelp.prototype.saveToDB = function() {
-//   const SQL = `
-//     INSERT INTO yelps
-//       (name,image_url,price,rating,url)
-//       VALUES($1,$2,$3,$4,$5)
-//       RETURNING id
-//   `;
-//   let values = Object.values(this);
-//   return client.query( SQL,values );
-// };
+Yelp.prototype.saveToDB = function() {
+  console.log('save this: ', this);
+  const SQL = `INSERT INTO yelps (name,image_url,price,rating,url) VALUES($1,$2,$3,$4,$5)`;
+  let values = [this.name,this.image_url,this.price,this.rating,this.url];
+  return client.query( SQL,values );
+};
 
 
 // // HELPERS, MOVIES
