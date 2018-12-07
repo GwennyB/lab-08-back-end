@@ -39,9 +39,9 @@ app.get((''), (request,response) => {
 
 // set routes
 app.get(('/location'), getLatLng);
-app.get(('/weather'), getFeature);
-app.get(('/yelp'), getFeature);
-app.get(('/movies'), getFeature)
+app.get(('/weather'), getWeather);
+// app.get(('/yelp'), getYelp);
+// app.get(('/movies'), getMovies);
 
 
 // HELPER, LOCATION: define cache handling
@@ -60,14 +60,13 @@ function getLatLng (request, response) {
 }
 
 // HELPER, LOCATION: db lookup, hit/miss call
-Location.lookupLocation = (handler) { 
+Location.lookupLocation = (handler) => { 
 // query cache
   const SQL = `SELECT * FROM locations WHERE search_query=$1`;
   const values = [handler.query];
 
   return client.query( SQL, values)
     .then( results => {
-      console.log('query results: ', results);
       // if results, then return results to hit
       if (results.rowCount > 0) {
         handler.cacheHit(results);
@@ -105,12 +104,11 @@ Location.fetch = (query) => {
             location.id = result.rows[0].id;
             return location;
           })
-          // return location;
       }
     })
 };
 
-// HELPER, SAVE: save API data to DB
+// HELPER, LOCATION: save API data to DB
 Location.prototype.saveToDB = function() {
   const SQL = `
     INSERT INTO locations
@@ -124,161 +122,196 @@ Location.prototype.saveToDB = function() {
 
 
 // GENERIC HELPERS
-function getFeature (request, response) {
-  const handler = {
-    query: request.query.data,
-    cacheHit: (results) => {
-      response.send(results.rows);
-    },
-    cacheMiss: () => {
-      Weather.fetch(request.query.data)
-        .then( results => response.send(results))
-        .catch( error => handleError(error));
-    }
-  };
-  lookupFeature(handler);
+function Feature (request) {
+  this.location_id = request.query.data.id || 0;
+  this.query = request.query.data;
 }
 
-function lookupFeature (handler, tableName, id) {
-  // query cache
-  const SQL = `SELECT * FROM ${tableName} WHERE id=${id}`;
-  const values = [handler.query];
 
+Feature.prototype.lookupFeature = function () {
+  // query cache
+  const SQL = `SELECT * FROM ${this.tableName} WHERE location_id=$1`;
+  const values = [this.location_id];
   return client.query( SQL, values)
     .then( results => {
-      console.log('query results: ', results);
       // if results, then return results to hit
       if (results.rowCount > 0) {
-        handler.cacheHit(results);
         // if no results, then point to miss
       } else {
-        handler.cacheMiss();
+        this.cacheMiss();
       }
     })
     // if bad query, then point to error handler
     .catch( error => handleError(error) );
-};
-
+}
 
 
 // HELPERS, WEATHER
-function Weather(weatData) {
+function getWeather (request, response) {
+  const handler = new Feature (request);
+  handler.cacheHit = (results) => {
+    response.send(results.rows);
+  }
+  handler.cacheMiss = () => {
+    Weather.fetch(request.query)
+      .then( results => response.send(results))
+      .catch( error => handleError(error));
+  }
+  handler.tableName = 'weathers',
+  handler.lookupFeature();
+}
+
+function Weather(weatData, locID) {
+  this.location_id = locID;
   this.forecast = weatData.summary;
   this.time = new Date(weatData.time * 1000).toDateString();
 }
 
-Weather.fetch = (query) => {
+Weather.fetch = function(query) {
   // API call
-  const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${location.latitude},${location.longitude}`;
+  const url = `https://api.darksky.net/forecast/${process.env.DARKSKY_API_KEY}/${query.data.latitude},${query.data.longitude}`;
   return superagent.get(url)
     .then( apiData => {
       // if no data: throw error
-      if (!apiData.body.daily.length) {
+      if (!apiData.body.daily.data.length) {
         throw 'No Data from API'
         // if data: save, send to front
       } else {
-        const weather = apiData.body.daily.data.map( (day) => {
-          const thisWeather = new Weather(day);
-          thisWeather.save(query.id);
+        const weather = apiData.body.daily.data.map( day => {
+          const thisWeather = new Weather(day, query.data.id);
+          thisWeather.saveToDB();
           return thisWeather;
         })
-      return weather;
+        return weather;
       }
     });
 };
 
 Weather.prototype.saveToDB = function() {
-  const SQL = `
-  INSERT INTO weathers
-    (forecast,time)
-    VALUES($1,$2)
-    RETURNING id
-`;
-let values = Object.values(this);
-return client.query( SQL,values );
+  const SQL = `INSERT INTO weathers (forecast,time,location_id) VALUES ($1,$2,$3)`;
+  let values = [this.forecast,this.time,this.location_id];
+  let weather = client.query( SQL,values );
+  return weather;
 };
 
 
 // HELPERS, YELP
-function Restaurant (restaurant) {
-  this.name = restaurant.name,
-  this.image_url = restaurant.image_url,
-  this.price = restaurant.price,
-  this.rating = restaurant.rating,
-  this.url = restaurant.url
-}
+// function getYelp (request, response) {
+//   const handler = {
+//     id: request.query.data.id || 0,
+//     query: request.query.data,
+//     cacheHit: (results) => {
+//       response.send(results.rows);
+//       console.log('Yelp cacheHit: ', results);
+//     },
+//     cacheMiss: () => {
+//       Yelp.fetch(request.query.data)
+//         .then( results => response.send(results))
+//         .catch( error => handleError(error));
+//     },
+//     tableName: 'yelps',
+//   };
+//   lookupFeature(handler);
+// }
 
-Restaurant.fetchYelp = (query) => {
-  const url = `https://api.yelp.com/v3/businesses/search?location=${request.query.data.search_query}`;
-  return superagent.get(url).set('Authorization', `Bearer ${process.env.YELP_API_KEY}`)
-    .then( apiData => {
-      // if no data: throw error
-      if (!apiData.body.daily.length) {
-        throw 'No Data from API'
-        // if data: save, send to front
-      } else {
-        const restaurants = apiData.body.businesses.map(thisOne => {
-          const thisRestaurant = new Restaurant(thisOne);
-          thisRestaurant.save(query.id);
-          return thisRestaurant;
-        })
-      return restaurants;
-      }
-    });
-};
+// function Yelp (data) {
+//   this.name = data.name,
+//   this.image_url = data.image_url,
+//   this.price = data.price,
+//   this.rating = data.rating,
+//   this.url = data.url
+// }
 
-Restaurant.prototype.saveToDB = function() {
-  const SQL = `
-    INSERT INTO yelps
-      (name,image_url,price,rating,url)
-      VALUES($1,$2,$3,$4,$5)
-      RETURNING id
-  `;
-  let values = Object.values(this);
-  return client.query( SQL,values );
-};
+// Yelp.fetch = (query) => {
+//   const url = `https://api.yelp.com/v3/businesses/search?location=${request.query.data.search_query}`;
+//   return superagent.get(url).set('Authorization', `Bearer ${process.env.YELP_API_KEY}`)
+//     .then( apiData => {
+//       // if no data: throw error
+//       if (!apiData.body.daily.length) {
+//         throw 'No Data from API'
+//         // if data: save, send to front
+//       } else {
+//         const yelps = apiData.body.businesses.map(thisOne => {
+//           const thisYelp = new Yelp(thisOne);
+//           thisYelp.save(query.id);
+//           return thisYelp;
+//         })
+//         return yelps;
+//       }
+//     });
+// };
+
+// Yelp.prototype.saveToDB = function() {
+//   const SQL = `
+//     INSERT INTO yelps
+//       (name,image_url,price,rating,url)
+//       VALUES($1,$2,$3,$4,$5)
+//       RETURNING id
+//   `;
+//   let values = Object.values(this);
+//   return client.query( SQL,values );
+// };
 
 
-// HELPERS, MOVIES
-function Movie (data) {
-  this.title = data.title,
-  this.overview = data.overview,
-  this.average_votes = data.vote_average,
-  this.total_votes = data.vote_count,
-  this.image_url = `https://image.tmdb.org/t/p/w200_and_h300_bestv2/${data.poster_path}`,
-  this.popularity = data.popularity,
-  this.released_on = data.release_date
-}
+// // HELPERS, MOVIES
+// function getMovies (request, response) {
+//   console.log('Movies request: ', request.query);
+//   const handler = {
+//     id: request.query.data.id || 0,
+//     query: request.query.data,
+//     cacheHit: (results) => {
+//       response.send(results.rows);
+//       console.log('Movie cacheHit: ', results);
+//     },
+//     cacheMiss: () => {
+//       Movie.fetch(request.query.data)
+//         .then( results => response.send(results))
+//         .catch( error => handleError(error));
+//     },
+//     tableName: 'movies',
+//   };
+//   lookupFeature(handler);
+// }
 
-Movie.fetchMovies = (query) => {
-  const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.TMDB_API_KEY}&query=${request.query.data.search_query}`;
-  return superagent.get(url)
-    .then( apiData => {
-      // if no data: throw error
-      if (!apiData.body.daily.length) {
-        throw 'No Data from API'
-        // if data: save, send to front
-      } else {
-        let parsedData = JSON.parse(apiData.text);
-        let allMovies = parsedData.results.map( rawMovie => {
-          let thisMovie = new Movie (rawMovie);
-          return thisMovie;
-        });
-      }
-      return allMovies;
-    })
-};
+// function Movie (data) {
+//   this.title = data.title,
+//   this.overview = data.overview,
+//   this.average_votes = data.vote_average,
+//   this.total_votes = data.vote_count,
+//   this.image_url = `https://image.tmdb.org/t/p/w200_and_h300_bestv2/${data.poster_path}`,
+//   this.popularity = data.popularity,
+//   this.released_on = data.release_date
+// }
 
-Movie.prototype.saveToDB = function() {
-  const SQL = `
-  INSERT INTO movies
-    (title,overview,average_votes,total_votes,image_url,popularity,released_on)
-    VALUES($1,$2,$3,$4,$5,$6,$7)
-    RETURNING id
-  `;
-  let values = Object.values(this);
-  return client.query( SQL,values );
-};
+// Movie.fetch = (query) => {
+//   const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.TMDB_API_KEY}&query=${request.query.data.search_query}`;
+//   return superagent.get(url)
+//     .then( apiData => {
+//       // if no data: throw error
+//       if (!apiData.body.daily.length) {
+//         throw 'No Data from API'
+//         // if data: save, send to front
+//       } else {
+//         let parsedData = JSON.parse(apiData.text);
+//         let allMovies = parsedData.results.map( rawMovie => {
+//           let thisMovie = new Movie (rawMovie);
+//           return thisMovie;
+//         });
+//       }
+//       return allMovies;
+//     })
+// };
+
+// // Movie.prototype.saveToDB = function() {
+//   const SQL = `
+//   INSERT INTO movies
+//     (title,overview,average_votes,total_votes,image_url,popularity,released_on)
+//     VALUES($1,$2,$3,$4,$5,$6,$7)
+//     RETURNING id
+//   `;
+//   let values = Object.values(this);
+//   return client.query( SQL,values );
+// };
 
 
 
