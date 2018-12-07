@@ -242,8 +242,6 @@ Yelp.fetch = (query) => {
       } else {
         const yelps = apiData.body.businesses.map(biz => {
           const thisYelp = new Yelp(biz,query.data.id);
-          console.log('biz.name', biz.name);
-          console.log('query.data.id', query.data.id);
           thisYelp.saveToDB();
           // console.log('thisYelp', thisYelp);
           return thisYelp;
@@ -254,10 +252,10 @@ Yelp.fetch = (query) => {
 };
 
 Yelp.prototype.saveToDB = function() {
-  console.log('save this: ', this);
-  const SQL = `INSERT INTO yelps (name,image_url,price,rating,url) VALUES($1,$2,$3,$4,$5)`;
-  let values = [this.name,this.image_url,this.price,this.rating,this.url];
-  return client.query( SQL,values );
+  const SQL = `INSERT INTO yelps (location_id,name,image_url,price,rating,url) VALUES($1,$2,$3,$4,$5,$6)`;
+  let values = [this.location_id,this.name,this.image_url,this.price,this.rating,this.url];
+  let results = client.query( SQL,values )
+  return results;
 };
 
 
