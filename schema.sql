@@ -15,12 +15,14 @@ CREATE TABLE locations (
 
 CREATE TABLE weathers (
   id SERIAL PRIMARY KEY,
+  location_id NUMERIC(20),
   forecast VARCHAR(255),
-  time NUMERIC(20,0)
+  time VARCHAR(20)
 );
 
 CREATE TABLE movies (
   id SERIAL PRIMARY KEY,
+  location_id NUMERIC(20),
   title VARCHAR(255),
   overview VARCHAR(255),
   average_votes NUMERIC(3,1),
@@ -32,6 +34,7 @@ CREATE TABLE movies (
 
 CREATE TABLE yelps (
   id SERIAL PRIMARY KEY,
+  location_id NUMERIC(20),
   name VARCHAR(255),
   image_url VARCHAR(255),
   price VARCHAR(5),
