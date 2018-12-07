@@ -1,9 +1,5 @@
 'use strict';
 
-// url stash
-
-
-
 // application dependencies
 const express = require('express');
 const cors = require('cors');
@@ -13,7 +9,6 @@ const pg = require('pg');
 const app = express();
 
 app.use(cors());
-
 
 // get application constants
 require('dotenv').config();
@@ -39,9 +34,9 @@ app.get((''), (request,response) => {
 
 // set routes
 app.get(('/location'), getLatLng);
-app.get(('/weather'), getWeather);
-app.get(('/yelp'), getYelp);
-// app.get(('/movies'), getMovies);
+// app.get(('/weather'), getWeather);
+// app.get(('/yelp'), getYelp);
+app.get(('/movies'), getMovies);
 
 
 // HELPER, LOCATION: define cache handling
@@ -119,8 +114,6 @@ Location.prototype.saveToDB = function() {
   let values = Object.values(this);
   return client.query( SQL,values );
 };
-
-
 
 
 // GENERIC HELPERS
@@ -254,75 +247,65 @@ Yelp.fetch = (query) => {
 Yelp.prototype.saveToDB = function() {
   const SQL = `INSERT INTO yelps (location_id,name,image_url,price,rating,url) VALUES($1,$2,$3,$4,$5,$6)`;
   let values = [this.location_id,this.name,this.image_url,this.price,this.rating,this.url];
-  let results = client.query( SQL,values )
-  return results;
+  return client.query( SQL,values )
 };
 
 
 // // HELPERS, MOVIES
-// function getMovies (request, response) {
-//   console.log('Movies request: ', request.query);
-//   const handler = {
-//     id: request.query.data.id || 0,
-//     query: request.query.data,
-//     cacheHit: (results) => {
-//       response.send(results.rows);
-//       console.log('Movie cacheHit: ', results);
-//     },
-//     cacheMiss: () => {
-//       Movie.fetch(request.query.data)
-//         .then( results => response.send(results))
-//         .catch( error => handleError(error));
-//     },
-//     tableName: 'movies',
-//   };
-//   lookupFeature(handler);
-// }
+function getMovies (request, response) {
+  const handler = new Feature (request);
+  handler.cacheHit = (results) => {
+    console.log('cacheHit');
+    response.send(results.rows);
+  }
+  handler.cacheMiss = () => {
+    console.log('cacheMiss');
+    Movie.fetch(request.query)
+      .then( results => response.send(results))
+      .catch( error => handleError(error));
+  }
+  handler.tableName = 'movies',
+  handler.lookupFeature();
+}
 
-// function Movie (data) {
-//   this.title = data.title,
-//   this.overview = data.overview,
-//   this.average_votes = data.vote_average,
-//   this.total_votes = data.vote_count,
-//   this.image_url = `https://image.tmdb.org/t/p/w200_and_h300_bestv2/${data.poster_path}`,
-//   this.popularity = data.popularity,
-//   this.released_on = data.release_date
-// }
+function Movie (data,locID) {
+  this.location_id = locID,
+  this.title = data.title,
+  this.overview = data.overview,
+  this.average_votes = data.vote_average,
+  this.total_votes = data.vote_count,
+  this.image_url = `https://image.tmdb.org/t/p/w200_and_h300_bestv2/${data.poster_path}`,
+  this.popularity = data.popularity,
+  this.released_on = data.release_date
+}
 
-// Movie.fetch = (query) => {
-//   const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.TMDB_API_KEY}&query=${request.query.data.search_query}`;
-//   return superagent.get(url)
-//     .then( apiData => {
-//       // if no data: throw error
-//       if (!apiData.body.daily.length) {
-//         throw 'No Data from API'
-//         // if data: save, send to front
-//       } else {
-//         let parsedData = JSON.parse(apiData.text);
-//         let allMovies = parsedData.results.map( rawMovie => {
-//           let thisMovie = new Movie (rawMovie);
-//           return thisMovie;
-//         });
-//       }
-//       return allMovies;
-//     })
-// };
+Movie.fetch = (query) => {
+  const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.TMDB_API_KEY}&query=${query.data.search_query}`;
+  return superagent.get(url)
+    .then( apiData => {
+      // if no data: throw error
+      if (!apiData.text) {
+        throw 'No Data from API'
+        // if data: save, send to front
+      } else {
+        let parsedData = JSON.parse(apiData.text);
+        let allMovies = parsedData.results.map( rawMovie => {
+          let thisMovie = new Movie (rawMovie,query.data.id);
+          thisMovie.saveToDB();
+          return thisMovie;
+        });
+        return allMovies;
+      }
+    })
+};
 
-// // Movie.prototype.saveToDB = function() {
-//   const SQL = `
-//   INSERT INTO movies
-//     (title,overview,average_votes,total_votes,image_url,popularity,released_on)
-//     VALUES($1,$2,$3,$4,$5,$6,$7)
-//     RETURNING id
-//   `;
-//   let values = Object.values(this);
-//   return client.query( SQL,values );
-// };
-
-
-
-
-
+Movie.prototype.saveToDB = function() {
+  const SQL = `INSERT INTO movies (location_id,title,overview,average_votes,total_votes,image_url,popularity,released_on)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8)`;
+  let values = [this.location_id,this.title,this.overview,this.average_votes,this.total_votes,this.image_url,this.popularity,this.released_on];
+  let savedMovie = client.query( SQL,values );
+  return savedMovie;
+};
 
 
 // error handler
