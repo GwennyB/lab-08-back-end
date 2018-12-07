@@ -7,16 +7,16 @@ Estimate of time needed to complete: 4 hours (with debugging)
 
 Start time: 9:00am
 
-Finish time: ______
+Finish time: 10:45pm
 
-Actual time needed to complete: __________
+Actual time needed to complete: 8:45
 
 
 
 # zubucity-12-06.herokuapp.com
 
 **Author**: Gwen Zubatch
-**Version**: 1.1.0 
+**Version**: 1.2.0 
 
 ## Overview
 This server application accepts a location (city) query string from a client and returns objects with SQL-DB or API-sourced map, weather, restaurants, and movies data for that location.
@@ -65,6 +65,7 @@ Caching: All features use DB='explorer' for remote caching.
 12-05-2018 2:45pm - Application now returns location object sourced by Google Geocoding API, weather object sourced by Dark Sky API, and restaurants object sourced by Yelp API.
 12-05-2018 5:45pm - Application now returns movies data sourced by TMDb API. Deployed at https://zubucity-12-05.herokuapp.com/.
 12-06-2018 10:30am - Application is now connected to SQL DB ('explorer'), which contains tables for locations, weathers, yelps, and movies.
+12-06-2018 10:45pm - Application features all use DB caching.
 
 ## Credits and Collaborations
 Collaborative effort by:
